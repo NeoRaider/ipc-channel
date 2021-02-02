@@ -44,6 +44,17 @@ const SCM_RIGHTS: c_int = 0x01;
 // Empirically, we have to deduct 32 bytes from that.
 const RESERVED_SIZE: usize = 32;
 
+#[cfg(target_os = "linux")]
+const SOCK_FLAGS: c_int = libc::SOCK_CLOEXEC;
+#[cfg(not(target_os = "linux"))]
+const SOCK_FLAGS: c_int = 0;
+
+#[cfg(target_os = "linux")]
+const RECVMSG_FLAGS: c_int = libc::MSG_CMSG_CLOEXEC;
+#[cfg(not(target_os = "linux"))]
+const RECVMSG_FLAGS: c_int = 0;
+
+
 #[cfg(target_env = "gnu")]
 type IovLen = usize;
 #[cfg(target_env = "gnu")]
@@ -80,7 +91,7 @@ static SHM_COUNT: AtomicUsize = AtomicUsize::new(0);
 pub fn channel() -> Result<(OsIpcSender, OsIpcReceiver),UnixError> {
     let mut results = [0, 0];
     unsafe {
-        if socketpair(libc::AF_UNIX, SOCK_SEQPACKET, 0, &mut results[0]) >= 0 {
+        if socketpair(libc::AF_UNIX, SOCK_SEQPACKET | SOCK_FLAGS, 0, &mut results[0]) >= 0 {
             Ok((OsIpcSender::from_fd(results[0]), OsIpcReceiver::from_fd(results[1])))
         } else {
             Err(UnixError::last())
@@ -997,7 +1008,7 @@ fn create_shmem(name: CString, length: usize) -> c_int {
 #[cfg(all(feature="memfd", target_os="linux"))]
 fn create_shmem(name: CString, length: usize) -> c_int {
     unsafe {
-        let fd = memfd_create(name.as_ptr(), 0);
+        let fd = memfd_create(name.as_ptr(), libc::MFD_CLOEXEC as usize);
         assert!(fd >= 0);
         assert!(libc::ftruncate(fd, length as off_t) == 0);
         fd
@@ -1037,7 +1048,7 @@ impl UnixCmsg {
             }
         }
 
-        let result = recvmsg(fd, &mut self.msghdr, 0);
+        let result = recvmsg(fd, &mut self.msghdr, RECVMSG_FLAGS);
         let result = if result > 0 {
             Ok(result as usize)
         } else if result == 0 {
