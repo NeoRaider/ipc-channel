@@ -405,7 +405,7 @@ impl OsIpcSender {
     pub fn connect(name: String) -> Result<OsIpcSender,UnixError> {
         let name = CString::new(name).unwrap();
         unsafe {
-            let fd = libc::socket(libc::AF_UNIX, SOCK_SEQPACKET, 0);
+            let fd = libc::socket(libc::AF_UNIX, SOCK_SEQPACKET | SOCK_FLAGS, 0);
             let (sockaddr, len) = new_sockaddr_un(name.as_ptr());
             if libc::connect(fd, &sockaddr as *const _ as *const sockaddr, len as socklen_t) < 0 {
                 return Err(UnixError::last())
@@ -601,7 +601,7 @@ impl Drop for OsIpcOneShotServer {
 impl OsIpcOneShotServer {
     pub fn new() -> Result<(OsIpcOneShotServer, String),UnixError> {
         unsafe {
-            let fd = libc::socket(libc::AF_UNIX, SOCK_SEQPACKET, 0);
+            let fd = libc::socket(libc::AF_UNIX, SOCK_SEQPACKET | SOCK_FLAGS, 0);
             let temp_dir = Builder::new().tempdir().unwrap();
             let socket_path = temp_dir.path().join("socket");
             let path_string = socket_path.to_str().unwrap();
